@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(to right, #83a4d4, #b6fbff);
+            margin: 0;
+            padding: 40px 20px;
+        }
+
+        h1 {
+            color: #fff;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .search-container {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        input, button {
+            padding: 12px;
+            font-size: 1em;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+        }
+
+        input {
+            width: 250px;
+        }
+
+        button {
+            background-color: #007BFF;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .results {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+
+        .section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            flex: 1 1 300px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            min-width: 300px;
+            text-align: center;
+        }
+
+        .section h2 {
+            margin-top: 0;
+            color: #333;
+            font-size: 1.4em;
+        }
+
+        .weather-item {
+            margin-bottom: 10px;
+        }
+
+        .weather-icon {
+            width: 50px;
+            height: 50px;
+            margin: 10px 0;
+        }
+
+        .forecast-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .forecast-table th, .forecast-table td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+
+        .forecast-table th {
+            background-color: #f2f2f2;
+        }
+
+        .alert-message {
+            padding: 10px;
+            background-color: #ffe0e0;
+            border-left: 4px solid red;
+            margin-bottom: 10px;
+        }
+
+        .loading {
+            font-style: italic;
+            color: #666;
+        }
+
+        .error {
+            color: red;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+            padding-top: 60px;
+        }
+
+        .modal-content {
+            background-color: #fff;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 400px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            .results {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            input {
+                width: 90%;
+            }
+
+            .modal-content {
+                width: 90%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🌦️ Weather Dashboard</h1>
+
+    <div class="search-container">
+        <input type="text" id="locationInput" placeholder="Enter location (e.g., London)">
+        <button onclick="getWeatherData()">Get Weather</button>
+    </div>
+
+    <div class="results" id="resultsContainer" style="display:none;">
+        <div class="section">
+            <h2>Current Weather</h2>
+            <div id="currentWeather" class="weather-content"></div>
+        </div>
+        <div class="section">
+            <h2>Weather Predictions</h2>
+            <div id="forecast" class="weather-content"></div>
+        </div>
+        <div class="section">
+            <h2>Weather Alerts</h2>
+            <div id="alerts" class="weather-content"></div>
+        </div>
+    </div>
+
+    <!-- Modal for displaying errors -->
+    <div id="errorModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2>Error</h2>
+            <p id="modalErrorMessage"></p>
+        </div>
+    </div>
+
+    <script>
+        // Open modal
+        function openModal(message) {
+            document.getElementById("modalErrorMessage").textContent = message;
+            document.getElementById("errorModal").style.display = "block";
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById("errorModal").style.display = "none";
+        }
+
+        // Fetch data from API and display results
+        function getWeatherData() {
+            const location = document.getElementById('locationInput').value.trim();
+            if (!location) {
+                openModal("Please enter a location.");
+                return;
+            }
+
+            const encodedLocation = encodeURIComponent(location);
+
+            const endpoints = [
+                { url: `http://127.0.0.1:8000/api/weather_report/${encodedLocation}/`, target: 'currentWeather' },
+                { url: `http://127.0.0.1:8000/api/forecast/${encodedLocation}/`, target: 'forecast' },
+                { url: `http://127.0.0.1:8000/api/alerts/${encodedLocation}/`, target: 'alerts' },
+            ];
+
+            document.getElementById('resultsContainer').style.display = 'flex';
+
+            endpoints.forEach(endpoint => {
+                const container = document.getElementById(endpoint.target);
+                container.innerHTML = '<p class="loading">Loading...</p>';
+
+                fetch(endpoint.url)
+                    .then(res => {
+                        if (!res.ok) throw new Error("No data found for this location.");
+                        return res.json();
+                    })
+                    .then(data => {
+                        if (endpoint.target === 'currentWeather') {
+                            container.innerHTML = `
+                             
+                                <div class="weather-item"><strong>Temperature:</strong> ${data.temperature} °C</div>
+                                <div class="weather-item"><strong>Humidity:</strong> ${data.humidity} %</div>
+                                <div class="weather-item"><strong>Pressure:</strong> ${data.pressure} hPa</div>
+                                <div class="weather-item"><strong>Description:</strong> ${data.description}</div>
+                                <div class="weather-item"><strong>Recorded:</strong> ${new Date(data.date_recorded).toLocaleString()}</div>
+                            `;
+                        } else if (endpoint.target === 'forecast') {
+                            if (data.forecast && data.forecast.length) {
+                                let forecastHTML = `
+                                    <table class="forecast-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Max Temp (°C)</th>
+                                                <th>Min Temp (°C)</th>
+                                                <th>Humidity (%)</th>
+                                                <th>Description</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                `;
+                                data.forecast.forEach(day => {
+                                    forecastHTML += `
+                                        <tr>
+                                            <td>${day.date}</td>
+                                            <td>${day.temperature_max}</td>
+                                            <td>${day.temperature_min}</td>
+                                            <td>${day.humidity}</td>
+                                            <td>${day.description}</td>
+                                        </tr>
+                                    `;
+                                });
+                                forecastHTML += `</tbody></table>`;
+                                container.innerHTML = forecastHTML;
+                            } else {
+                                container.innerHTML = `<p>No forecast data available for this location.</p>`;
+                            }
+                        } else if (endpoint.target === 'alerts') {
+                            if (data && data.length) {
+                                container.innerHTML = data.map(alert => `
+                                    <div class="alert-message">
+                                        <strong>${alert.title}</strong><br>
+                                        Severity: ${alert.severity}<br>
+                                        ${alert.description}
+                                    </div>
+                                `).join('');
+                            } else {
+                                container.innerHTML = `<p>No alerts for this location.</p>`;
+                            }
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Error:', err);
+                        openModal(`❌ ${err.message}`);
+                        container.innerHTML = `<p class="error">❌ ${err.message}</p>`;
+                    });
+            });
+        }
+    </script>
+
+</body>
+</html>
